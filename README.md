@@ -22,8 +22,9 @@ This repository covers the **motion tracking training** component of BeyondMimic
 - 🎯 **High-Quality Motion Tracking**: State-of-the-art motion imitation quality
 - 🤖 **Multi-Robot Support**: Compatible with Unitree G1 and other humanoid robots
 - 🔄 **Adaptive Sampling**: Intelligent motion processing pipeline
-- 📊 **WandB Integration**: Seamless experiment tracking and model registry
+- 💾 **Local Workflow**: Complete offline processing without external dependencies
 - 🚀 **Sim-to-Real Ready**: Optimized for real-world deployment
+- 📁 **Flexible Data Management**: Support for local NPZ files and direct model paths
 
 ## 📋 TODO List
 
@@ -69,9 +70,9 @@ This repository covers the **motion tracking training** component of BeyondMimic
 
 ## 🎭 Motion Tracking Workflow
 
-### 1. Motion Preprocessing & Registry Setup
+### 1. Motion Preprocessing (Local)
 
-We leverage WandB registry to store and load reference motions automatically. **Note**: Reference motions should be retargeted and use generalized coordinates only.
+We support local motion processing without requiring WandB. **Note**: Reference motions should be retargeted and use generalized coordinates only.
 
 #### Available Datasets
 
@@ -80,61 +81,65 @@ We leverage WandB registry to store and load reference motions automatically. **
 - **Cristiano Ronaldo Celebration**: From [ASAP](https://github.com/LeCAR-Lab/ASAP)
 - **Balance Motions**: From [HuB](https://hub-robot.github.io/)
 
-#### Setup WandB Registry
-
-1. **Login to WandB**: Access your account
-2. **Create Registry**: Go to Core → Registry → Create new collection
-   - **Name**: "Motions"
-   - **Artifact Type**: "All Types"
-
-#### Convert Motions
+#### Convert Motions (Local Mode)
 
 ```bash
-# Convert CSV to NPZ with full coordinate information
+# Convert CSV to NPZ with local saving (no WandB required)
 python scripts/csv_to_npz.py \
   --input_file {motion_name}.csv \
   --input_fps 30 \
   --output_name {motion_name} \
+  --save_to assets/motions/{motion_name}.npz \
+  --no_wandb \
   --headless
 ```
 
-This automatically uploads the processed motion to WandB registry.
+This saves the processed motion locally as NPZ files.
 
-#### Test Motion Replay
+#### Test Motion Replay (Local)
 
 ```bash
-# Verify WandB registry functionality
+# Verify motion files work locally
 python scripts/replay_npz.py \
-  --registry_name={your-organization}-org/wandb-registry-motions/{motion_name}
+  --motion_file assets/motions/{motion_name}.npz \
+  --headless
 ```
 
-#### Troubleshooting
-
-- **WANDB_ENTITY**: Must be your organization name, not personal username
-- **Temp Folder**: If `/tmp` is inaccessible, modify `csv_to_npz.py` lines 319 & 326
-
-### 2. Policy Training
+### 2. Policy Training (Local)
 
 ```bash
 python scripts/rsl_rl/train.py \
   --task=Tracking-Flat-G1-v0 \
-  --registry_name {your-organization}-org/wandb-registry-motions/{motion_name} \
-  --headless \
-  --logger wandb \
-  --log_project_name {project_name} \
-  --run_name {run_name}
+  --motion_file assets/motions/{motion_name}.npz \
+  --headless
 ```
 
-### 3. Policy Evaluation
+### 3. Policy Evaluation (Local)
 
 ```bash
 python scripts/rsl_rl/play.py \
   --task=Tracking-Flat-G1-v0 \
-  --num_envs=2 \
-  --wandb_path={wandb-run-path}
+  --motion_file assets/motions/{motion_name}.npz \
+  --load_run {experiment_timestamp} \
+  --checkpoint {checkpoint_number} \
+  --num_envs 2 \
+  --headless
 ```
 
-**Note**: WandB run path format: `{your_organization}/{project_name}/{8-char-id}`
+**Note**: Checkpoint information can be found in `logs/rsl_rl/{task_name}/{timestamp}/`
+
+### 4. Advanced: Direct Model Path
+
+For more control, you can directly specify the model file path:
+
+```bash
+python scripts/rsl_rl/play.py \
+  --task=Tracking-Flat-G1-v0 \
+  --motion_file assets/motions/{motion_name}.npz \
+  --model_path logs/rsl_rl/{task_name}/{timestamp}/model_{checkpoint}.pt \
+  --num_envs 2 \
+  --headless
+```
 
 ## 🏗️ Code Structure
 
@@ -178,9 +183,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - **LAFAN1 Dataset**: For motion data
-- **KungfuBot**: For sidekick motions
+- **KungfuBot**: For sidekick motions and inspiration
 - **ASAP**: For celebration motions
 - **HuB**: For balance motions
+- **Isaac Sim**: For simulation environment
+- **RSL-RL**: For reinforcement learning framework
 
 ## 📞 Contact
 
