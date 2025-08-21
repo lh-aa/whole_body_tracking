@@ -11,6 +11,7 @@
 
 import argparse
 import numpy as np
+import os
 
 from isaaclab.app import AppLauncher
 
@@ -30,6 +31,9 @@ parser.add_argument(
 )
 parser.add_argument("--output_name", type=str, required=True, help="The name of the motion npz file.")
 parser.add_argument("--output_fps", type=int, default=50, help="The fps of the output motion.")
+# New: allow disabling wandb upload and choose save path
+parser.add_argument("--no_wandb", action="store_true", help="Disable WandB logging and registry upload.")
+parser.add_argument("--save_to", type=str, default="/tmp/motion.npz", help="Path to save the generated npz.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -298,17 +302,25 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, joi
             ):
                 log[k] = np.stack(log[k], axis=0)
 
-            np.savez("/tmp/motion.npz", **log)
+            # Always save locally
+            np.savez(args_cli.save_to, **log)
+            print(f"[INFO]: Motion saved to: {args_cli.save_to}")
 
-            import wandb
+            # Optionally upload to WandB registry (unless disabled)
+            use_wandb = (not args_cli.no_wandb) and (os.environ.get("WANDB_DISABLED", "").lower() not in ["1", "true", "yes"])
+            if use_wandb:
+                import wandb
 
-            COLLECTION = args_cli.output_name
-            run = wandb.init(project="csv_to_npz", name=COLLECTION)
-            print(f"[INFO]: Logging motion to wandb: {COLLECTION}")
-            REGISTRY = "motions"
-            logged_artifact = run.log_artifact(artifact_or_path="/tmp/motion.npz", name=COLLECTION, type=REGISTRY)
-            run.link_artifact(artifact=logged_artifact, target_path=f"wandb-registry-{REGISTRY}/{COLLECTION}")
-            print(f"[INFO]: Motion saved to wandb registry: {REGISTRY}/{COLLECTION}")
+                COLLECTION = args_cli.output_name
+                run = wandb.init(project="csv_to_npz", name=COLLECTION)
+                print(f"[INFO]: Logging motion to wandb: {COLLECTION}")
+                REGISTRY = "motions"
+                logged_artifact = run.log_artifact(artifact_or_path=args_cli.save_to, name=COLLECTION, type=REGISTRY)
+                try:
+                    run.link_artifact(artifact=logged_artifact, target_path=f"wandb-registry-{REGISTRY}/{COLLECTION}")
+                    print(f"[INFO]: Motion saved to wandb registry: {REGISTRY}/{COLLECTION}")
+                except Exception as e:
+                    print(f"[WARN]: Skipping registry link: {e}")
 
 
 def main():
